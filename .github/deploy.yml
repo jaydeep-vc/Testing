@@ -1,8 +1,8 @@
-name: ci-cd pipeline deploy to prod
+name: Testing
 
 on:
   push:
-    branches: [ feature/github-action ]
+    branches: [ master ]
 jobs:
   deploy:
     runs-on: ubuntu-latest
