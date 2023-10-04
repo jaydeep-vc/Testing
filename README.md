@@ -1,68 +1,253 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# nodejs-ssl-server
 
-## Available Scripts
+How to deploy nodejs app to AWS EC2 Ubuntu 22 Server with free SSL and Nginx reverse proxy
 
-In the project directory, you can run:
+<a href="https://www.buymeacoffee.com/scaleupsaas"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=scaleupsaas&button_colour=BD5FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00" /></a>
 
-### `npm start`
+## Installation instructions
 
-Runs the app in the development mode.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+### 1. Launch amazon ubuntu server in aws + Attach Elastic IP to the new instance
 
-The page will reload if you make edits.<br>
-You will also see any lint errors in the console.
+### 2. ssh to ubuntu to install packages
 
-### `npm test`
+```sh
+ssh -i <key.pem> ubuntu@<ip-address> -v
+```
 
-Launches the test runner in the interactive watch mode.<br>
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 3. Update and Upgrade linux machine and install node and nvm 
 
-### `npm run build`
+```sh
+sudo apt update
+```
 
-Builds the app for production to the `build` folder.<br>
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```sh
+sudo apt upgrade
+```
 
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
+```sh
+sudo apt install -y git htop wget
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+#### 3.1 install node
 
-### `npm run eject`
+To **install** or **update** nvm, you should run the [install script][2]. To do that, you may either download and run the script manually, or use the following cURL or Wget command:
+```sh
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+```
+Or
+```sh
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+Running either of the above commands downloads a script and runs it. The script clones the nvm repository to `~/.nvm`, and attempts to add the source lines from the snippet below to the correct profile file (`~/.bash_profile`, `~/.zshrc`, `~/.profile`, or `~/.bashrc`).
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+#### 3.2 Copy & Past (each line separately)
+<a id="profile_snippet"></a>
+```sh
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (Webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+#### 3.3 Verify that nvm has been installed
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+```sh
+nvm --version
+```
 
-## Learn More
+#### 3.4 Install node
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```sh
+nvm install --lts # Latest stable node js server version
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+#### 3.5 Check nodejs installed
+```sh
+node --version
+```
 
-### Code Splitting
+#### 3.6 Check npm installed
+```sh
+npm -v
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
+### 4. Clone nodejs-ssl-server repository
 
-### Analyzing the Bundle Size
+```sh
+cd /home/ubuntu
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
+```sh
+git clone https://github.com/saasscaleup/nodejs-ssl-server.git
+```
 
-### Making a Progressive Web App
+### 5. Run node app.js  (Make sure everything working)
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
+```sh
+cd nodejs-ssl-server
+```
 
-### Advanced Configuration
+```sh
+npm install
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
+```sh
+node app.js
+```
 
-### Deployment
+### 6. Install pm2
+```sh
+npm install -g pm2 # may require sudo
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
+### 7. Starting the app with pm2 (Run nodejs in background and when server restart)
+```sh
+pm2 start app.js --name=nodejs-ssl-server
+```
+```sh
+pm2 save     # saves the running processes
+                  # if not saved, pm2 will forget
+                  # the running apps on next boot
+```
 
-### `npm run build` fails to minify
+#### 7.1 IMPORTANT: If you want pm2 to start on system boot
+```sh
+pm2 startup # starts pm2 on computer boot
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+### 8. FREE SSL - Install Nginx web server
+
+```sh
+sudo apt install nginx
+```
+
+```sh
+sudo nano /etc/nginx/sites-available/default
+```
+
+#### Add the following to the location part of the server block
+
+```sh
+    server_name yourdomain.com www.yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:5000; #whatever port your app runs on
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+```
+
+##### Check NGINX config
+```sh
+sudo nginx -t
+```
+
+##### Restart NGINX
+```sh
+sudo service nginx restart
+```
+
+#### You should now be able to visit your IP with no port (port 80) and see your app. Now let's add a domain
+
+### 9 Add domain in goDaddy.com
+If you have domain, you can add A record to your EC2 instance IP with a new subdomain as I'm going to show you next
+
+#### 9.1 Check that Port 80 redirect to Nodejs server
+
+### 10 Installing Free SSL
+
+#### 10.1 Installing Certbot
+
+```sh
+sudo snap install core; sudo snap refresh core
+```
+
+```sh
+sudo apt remove certbot
+```
+
+```sh
+sudo snap install --classic certbot
+```
+
+```sh
+sudo ln -s /snap/bin/certbot /usr/bin/certbot
+```
+
+#### 10.2 Confirming Nginx’s Configuration
+```sh
+sudo nano /etc/nginx/sites-available/default
+```
+
+let edit this line:
+```sh
+...
+server_name example.com www.example.com;
+...
+```
+
+```sh
+sudo nginx -t
+```
+
+```sh
+sudo systemctl reload nginx
+```
+
+#### 10.3 Obtaining an FREE SSL Certificate
+```sh
+sudo certbot --nginx -d app.example.com 
+```
+
+Output:
+```
+IMPORTANT NOTES:
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/your_domain/fullchain.pem
+Key is saved at: /etc/letsencrypt/live/your_domain/privkey.pem
+This certificate expires on 2022-06-01.
+These files will be updated when the certificate renews.
+Certbot has set up a scheduled task to automatically renew this certificate in the background.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+If you like Certbot, please consider supporting our work by:
+* Donating to ISRG / Let's Encrypt: https://letsencrypt.org/donate
+* Donating to EFF: https://eff.org/donate-le
+```
+
+#### 10.4 Verifying Certbot Auto-Renewal
+```sh
+sudo systemctl status snap.certbot.renew.service
+```
+Output:
+```
+○ snap.certbot.renew.service - Service for snap application certbot.renew
+     Loaded: loaded (/etc/systemd/system/snap.certbot.renew.service; static)
+     Active: inactive (dead)
+TriggeredBy: ● snap.certbot.renew.timer
+```
+
+To test the renewal process, you can do a dry run with certbot:
+
+```sh
+sudo certbot renew --dry-run
+```
+
+### 11. Visit your website HTTPS://<your website>
+  Enjoy Your free Nodejs server with Free SSL :)
+  
+  
+## Support 🙏😃
+  
+ If you Like the tutorial and you want to support my channel so I will keep releasing amzing content that will turn you to a desirable Developer with Amazing Cloud skills... I will realy appricite if you:
+ 
+ 1. Subscribe to My youtube channel and leave a comment: http://www.youtube.com/@ScaleUpSaaS?sub_confirmation=1
+ 2. Buy me A coffee ❤️ : https://www.buymeacoffee.com/scaleupsaas
+
+Thanks for your support :)
+
+<a href="https://www.buymeacoffee.com/scaleupsaas"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=scaleupsaas&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
+
